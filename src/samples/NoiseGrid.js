@@ -35,11 +35,11 @@ export default function NoiseGrid(){
         let r = 0;
         let g = 0;
         let b = 0;
-        const numCol = 40;
-        const numRow = 40;
+        const numCol = 80;
+        const numRow = 80;
         let vertex;
         let col;
-        const gap = 0.125;
+        const gap = 0.06;
         const offset = { x: -2.2, y: -2.5};
         let ns;
         for(let i = 0; i < numCol; i++) {
@@ -49,9 +49,9 @@ export default function NoiseGrid(){
                 ns = Noise.noise(x, y, 0);
                 z = ns;
                 vertex = new THREE.Vector3(x, y, z);
-                r = Math.random();
-                g = 0;
-                b = 0;
+                r = ns * 2;
+                g = 0.25;
+                b = 0.25;
                 col = new THREE.Color(r, g, b);
                 coords.push(x,y,z);
                 colors.push(r, g, b);
@@ -62,7 +62,7 @@ export default function NoiseGrid(){
         const geo = new THREE.BufferGeometry()
         geo.setAttribute("position", new THREE.Float32BufferAttribute(coords, 3));
         geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
-        const mat = new THREE.PointsMaterial({size: 0.15, vertexColors: true})
+        const mat = new THREE.PointsMaterial({size: 0.08, vertexColors: true})
         const points = new THREE.Points(geo, mat)
         scene.add(points)
 
