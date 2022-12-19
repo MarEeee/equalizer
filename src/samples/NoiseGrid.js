@@ -22,12 +22,11 @@ export default function NoiseGrid(){
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 0, 0);
         controls.update();
-        
-        
-
+    
         const Noise = new ImprovedNoise()
         const coords = [];
         const colors = [];
+        const points = [];
         let x = 0;
         let y = 0;
         let z = 0;
@@ -42,17 +41,31 @@ export default function NoiseGrid(){
         const gap = 0.06;
         const offset = { x: -2.2, y: -2.5};
         let ns;
+        let point = {
+            position: {},
+            rate: 0.0,
+          };
         for(let i = 0; i < numCol; i++) {
             for(let j = 0; j < numRow; j++) {
                 x = offset.x + i * gap;
                 y = offset.y + j * gap;                
-                ns = Noise.noise(x, y, 0);
-                z = ns;
+                // ns = Noise.noise(x, y, 0);
+                // z = ns;
                 vertex = new THREE.Vector3(x, y, z);
-                r = ns * 2;
-                g = 0.25;
-                b = 0.25;
-                col = new THREE.Color(r, g, b);
+                r = Math.random();
+                g = Math.random();
+                b = Math.random();
+                // col = new THREE.Color(r, g, b);
+                point = {
+                    position: {
+                      x,
+                      y,
+                      z,
+                    },
+                    color: new THREE.Color(r, g, b),
+                  };
+              
+                  points.push(point);
                 coords.push(x,y,z);
                 colors.push(r, g, b);
             }
@@ -63,18 +76,41 @@ export default function NoiseGrid(){
         geo.setAttribute("position", new THREE.Float32BufferAttribute(coords, 3));
         geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
         const mat = new THREE.PointsMaterial({size: 0.08, vertexColors: true})
-        const points = new THREE.Points(geo, mat)
-        scene.add(points)
+        const pointsShape = new THREE.Points(geo, mat)
+        scene.add(pointsShape)
 
 
+
+        const updatePoints = (t) => {
+            const coords = [];
+            const cols = [];
+            let ns;
+            const nScale = 0.5;
+            const zPosScale = 1.5;
+            const lowColor = new THREE.Color(0.0, 0, 0.8);
+            const highColor = new THREE.Color(1.5, 1.5, 1.5);
+            points.forEach((p, i) => {
+                ns = Noise.noise(p.position.x * nScale, p.position.y * nScale, t);
+                p.position.z = ns * zPosScale;
+                p.color.lerpColors(lowColor, highColor, ns * 1.5);
+                let { r, g, b } = p.color;
+                cols.push(r, g, b);
+                let {x, y, z } = p.position;
+                coords.push(x, y, z);
+            });
+            geo.setAttribute("position", new THREE.Float32BufferAttribute(coords, 3));
+            geo.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));            
+        }
+
+        const timeMult = 0.0005;
         // renderer.render( scene, camera );
-        function animate() {
-            requestAnimationFrame( animate );           
+        const animate = (timeStep) => {
+            requestAnimationFrame(animate);
+            updatePoints(timeStep * timeMult);
+            renderer.render(scene, camera);
+        }
       
-            renderer.render( scene, camera );
-          };
-      
-          animate();
+        animate(0);
 
     },[])
     return (
