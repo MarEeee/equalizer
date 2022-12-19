@@ -7,6 +7,95 @@ import { ImprovedNoise } from 'https://cdn.skypack.dev/three@0.133.1/examples/js
 export default function NoiseGrid(){
     const canvasRef = useRef();
 
+    // peer connection
+    let pc = null;
+    // data channel
+    var dc = null, dcInterval = null;
+    let  dataChannelLog = ''
+    let  iceConnectionLog = ''
+    let  iceGatheringLog = ''
+    let  signalingLog  = ''
+
+    function current_stamp() {
+        let time_start = null
+        if (time_start === null) {
+            time_start = new Date().getTime();
+            return 0;
+        } else {
+            return new Date().getTime() - time_start;
+        }
+    }
+
+    function createPeerConnection() {
+        let config = {
+            sdpSemantics: 'unified-plan'
+        };
+
+        pc = new RTCPeerConnection(config);
+
+        // register some listeners to help debugging
+        // pc.addEventListener('icegatheringstatechange', function() {
+        //     iceGatheringLog += ' -> ' + pc.iceGatheringState;
+        // }, false);
+        // iceGatheringLog = pc.iceGatheringState;
+
+        // pc.addEventListener('iceconnectionstatechange', function() {
+        //     iceConnectionLog += ' -> ' + pc.iceConnectionState;
+        // }, false);
+        // iceConnectionLog = pc.iceConnectionState;
+
+        // pc.addEventListener('signalingstatechange', function() {
+        //     signalingLog += ' -> ' + pc.signalingState;
+        // }, false);
+        // signalingLog = pc.signalingState;
+
+        // // connect audio / video
+        // pc.addEventListener('track', function(evt) {
+        //     console.log(evt.streams[0])
+        // });
+
+        return pc;
+    }
+
+    const connect = () => {
+
+        pc = createPeerConnection();
+        dc = pc.createDataChannel('chat');
+        dc.onclose = function() {
+            clearInterval(dcInterval);
+            dataChannelLog += '- close\n';
+        };
+        dc.onopen = function() {
+            dataChannelLog += '- open\n';
+            dcInterval = setInterval(function() {
+                var message = 'ping ' + current_stamp();
+                dataChannelLog += '> ' + message + '\n';
+                dc.send(message);
+            }, 1000);
+        };
+        dc.onmessage = function(evt) {
+            dataChannelLog += '< ' + evt.data + '\n';
+
+            if (evt.data.substring(0, 4) === 'pong') {
+                var elapsed_ms = current_stamp() - parseInt(evt.data.substring(5), 10);
+                dataChannelLog += ' RTT ' + elapsed_ms + ' ms\n';
+            }
+        };
+
+        var constraints = {
+            audio: true
+        };
+
+        navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
+            stream.getTracks().forEach(function(track) {
+                pc.addTrack(track, stream);
+            });
+            return console.log('call');
+        }, function(err) {
+            alert('Could not acquire media: ' + err);
+        });
+    }
+
     useEffect(()=>{
         const w = window.innerWidth;
         const h = window.innerHeight;
@@ -103,7 +192,6 @@ export default function NoiseGrid(){
         }
 
         const timeMult = 0.0005;
-        // renderer.render( scene, camera );
         const animate = (timeStep) => {
             requestAnimationFrame(animate);
             updatePoints(timeStep * timeMult);
@@ -114,6 +202,8 @@ export default function NoiseGrid(){
 
     },[])
     return (
-        <div className="App" ref={canvasRef}/>
+        <div><button onClick={()=>connect()}>CLICK</button>
+        <div ref={canvasRef}/>
+        </div>
     )
 }
