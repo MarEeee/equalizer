@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useState, useRef} from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from "https://cdn.skypack.dev/three@0.133.1/examples/jsm/controls/OrbitControls.js";
 import { ImprovedNoise } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/math/ImprovedNoise.js';
@@ -6,15 +6,14 @@ import { ImprovedNoise } from 'https://cdn.skypack.dev/three@0.133.1/examples/js
 
 export default function NoiseGrid(){
     const canvasRef = useRef();
+    const [dataChannelLog, setDataChannelLog] = useState('')
+    const [logs, setLogs] = useState('')
 
     // peer connection
     let pc = null;
     // data channel
     var dc = null, dcInterval = null;
-    let  dataChannelLog = ''
-    let  iceConnectionLog = ''
-    let  iceGatheringLog = ''
-    let  signalingLog  = ''
+    let ac = null;
 
     function current_stamp() {
         let time_start = null
@@ -26,6 +25,80 @@ export default function NoiseGrid(){
         }
     }
 
+    // function escapeRegExp(string) {
+    //     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+    // }
+
+    // function sdpFilterCodec(kind, codec, realSdp) {
+    //     var allowed = []
+    //     var rtxRegex = new RegExp('a=fmtp:(\\d+) apt=(\\d+)\r$');
+    //     var codecRegex = new RegExp('a=rtpmap:([0-9]+) ' + escapeRegExp(codec))
+    //     var videoRegex = new RegExp('(m=' + kind + ' .*?)( ([0-9]+))*\\s*$')
+
+    //     var lines = realSdp.split('\n');
+
+    //     var isKind = false;
+    //     for (var i = 0; i < lines.length; i++) {
+    //         if (lines[i].startsWith('m=' + kind + ' ')) {
+    //             isKind = true;
+    //         } else if (lines[i].startsWith('m=')) {
+    //             isKind = false;
+    //         }
+
+    //         if (isKind) {
+    //             var match = lines[i].match(codecRegex);
+    //             if (match) {
+    //                 allowed.push(parseInt(match[1]));
+    //             }
+
+    //             match = lines[i].match(rtxRegex);
+    //             if (match && allowed.includes(parseInt(match[2]))) {
+    //                 allowed.push(parseInt(match[1]));
+    //             }
+    //         }
+    //     }
+    // }
+
+    function negotiate() {
+        return pc.createOffer().then(function(offer) {
+            return pc.setLocalDescription(offer);
+        }).then(function() {
+            // wait for ICE gathering to complete
+            return new Promise(function(resolve) {
+                if (pc.iceGatheringState === 'complete') {
+                    resolve();
+                } else {
+                    function checkState() {
+                        if (pc.iceGatheringState === 'complete') {
+                            pc.removeEventListener('icegatheringstatechange', checkState);
+                            resolve();
+                        }
+                    }
+                    pc.addEventListener('icegatheringstatechange', checkState);
+                }
+            
+            });
+        }).then(function() {
+            // var offer = pc.localDescription;
+            // var codec;
+
+            // codec = 'default'
+            // if (codec !== 'default') {
+            //     offer.sdp = sdpFilterCodec('audio', codec, offer.sdp);
+            // }
+
+            // console.log('offer.sdp', offer.sdp)
+            // console.log('offer.sdp', offer.type)
+        // }).then(function(answer) {
+        //     console.log('answer-sdp', answer)
+        //     // document.getElementById('answer-sdp').textContent = answer.sdp;
+        //     return pc.setRemoteDescription(answer);
+        }).catch(function(e) {
+            console.log('answer-sdp', e)
+            alert(e);
+        });
+        }
+
     function createPeerConnection() {
         let config = {
             sdpSemantics: 'unified-plan'
@@ -35,50 +108,64 @@ export default function NoiseGrid(){
 
         // register some listeners to help debugging
         // pc.addEventListener('icegatheringstatechange', function() {
-        //     iceGatheringLog += ' -> ' + pc.iceGatheringState;
+        //     setLogs(pc.iceGatheringState)
+        //     // iceGatheringLog += ' -> ' + pc.iceGatheringState;
         // }, false);
         // iceGatheringLog = pc.iceGatheringState;
 
         // pc.addEventListener('iceconnectionstatechange', function() {
-        //     iceConnectionLog += ' -> ' + pc.iceConnectionState;
+        //     setLogs(pc.iceConnectionState)
         // }, false);
         // iceConnectionLog = pc.iceConnectionState;
 
         // pc.addEventListener('signalingstatechange', function() {
-        //     signalingLog += ' -> ' + pc.signalingState;
+        //     setLogs(pc.signalingState)
+       
         // }, false);
         // signalingLog = pc.signalingState;
 
         // // connect audio / video
         // pc.addEventListener('track', function(evt) {
+        //     setLogs(evt)
+        //     console.log('evt', evt)
         //     console.log(evt.streams[0])
-        // });
+        // // });
+        // pc.ontrack = function(event) {
+        //     console.log('call')
+            
+        //     console.log('evt', new MediaStream([event.track]))
+        //     setLogs(new MediaStream([event.track]))
+        //     // document.getElementById("received_video").srcObject = new MediaStream([event.track]);
+        //   };
 
         return pc;
     }
 
-    const connect = () => {
-
+    const connect = () => {   
         pc = createPeerConnection();
         dc = pc.createDataChannel('chat');
         dc.onclose = function() {
             clearInterval(dcInterval);
-            dataChannelLog += '- close\n';
+            setDataChannelLog(dataChannelLog +'- close\n')
         };
         dc.onopen = function() {
-            dataChannelLog += '- open\n';
+            console.log('channel is open')
+            setDataChannelLog(dataChannelLog + '- open\n')
             dcInterval = setInterval(function() {
                 var message = 'ping ' + current_stamp();
-                dataChannelLog += '> ' + message + '\n';
+                setDataChannelLog(dataChannelLog + '> ' + message + '\n')
                 dc.send(message);
+                console.log('dataC', dataChannelLog)
             }, 1000);
         };
         dc.onmessage = function(evt) {
-            dataChannelLog += '< ' + evt.data + '\n';
+            // console.log('evt', evt)
+            // console.log('evt.data', evt.data)
+            setDataChannelLog(dataChannelLog + '< ' + evt.data + '\n')
 
             if (evt.data.substring(0, 4) === 'pong') {
                 var elapsed_ms = current_stamp() - parseInt(evt.data.substring(5), 10);
-                dataChannelLog += ' RTT ' + elapsed_ms + ' ms\n';
+                setDataChannelLog(dataChannelLog + ' RTT ' + elapsed_ms + ' ms\n')
             }
         };
 
@@ -90,7 +177,7 @@ export default function NoiseGrid(){
             stream.getTracks().forEach(function(track) {
                 pc.addTrack(track, stream);
             });
-            return console.log('call');
+            return negotiate();
         }, function(err) {
             alert('Could not acquire media: ' + err);
         });
@@ -201,9 +288,14 @@ export default function NoiseGrid(){
         animate(0);
 
     },[])
+
+    useEffect(()=>{
+        console.log('dataChannelLog', dataChannelLog)
+    },[dataChannelLog])
+
     return (
         <div><button onClick={()=>connect()}>CLICK</button>
-        <div ref={canvasRef}/>
+        <div ref={canvasRef} style={{display: 'none'}}/>
         </div>
     )
 }
